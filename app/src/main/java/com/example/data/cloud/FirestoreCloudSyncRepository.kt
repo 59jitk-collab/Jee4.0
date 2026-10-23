@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
-import com.example.R
 import com.example.data.local.AppDatabase
 import com.example.data.local.entities.ChapterEntity
 import com.example.data.local.entities.DailyScheduleEntity
@@ -187,15 +186,19 @@ class FirestoreCloudSyncRepository(
     private val auth: FirebaseAuth = Firebase.auth
 ) {
     constructor(context: Context) : this(
-        FirebaseFirestore.getInstance(
-            context.applicationContext.getString(R.string.firestore_database_id)
-        ),
+        resolveFirestoreDatabase(context),
         Firebase.auth
     )
 
     suspend fun signInWithGoogleCredentialManager(activityContext: Context): Result<FirebaseUser> {
         return try {
-            val webClientId = activityContext.getString(R.string.default_web_client_id)
+            val webClientId = resolveDefaultWebClientId(activityContext)
+                ?: return Result.failure(
+                    IllegalStateException(
+                        "Google Sign-In is not configured: 'default_web_client_id' was not found in string resources. " +
+                        "Ensure a valid google-services.json containing an OAuth Web Client (client_type 3) is present in the app module."
+                    )
+                )
             val googleIdOption = GetSignInWithGoogleOption.Builder(webClientId).build()
             val request = GetCredentialRequest.Builder()
                 .addCredentialOption(googleIdOption)
@@ -681,6 +684,27 @@ class FirestoreCloudSyncRepository(
         fun sanitizeFirestoreDocId(raw: String): String {
             val cleaned = raw.trim().replace(Regex("[^a-zA-Z0-9_\\-]"), "_")
             return cleaned.take(120).ifBlank { "doc_${System.currentTimeMillis()}" }
+        }
+
+        fun resolveDefaultWebClientId(context: Context): String? {
+            val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+            if (resId != 0) {
+                val value = runCatching { context.getString(resId) }.getOrNull()?.trim()
+                if (!value.isNullOrEmpty()) {
+                    return value
+                }
+            }
+            return null
+        }
+
+        fun resolveFirestoreDatabaseId(context: Context): String {
+            val resId = context.resources.getIdentifier("firestore_database_id", "string", context.packageName)
+            val dbId = if (resId != 0) runCatching { context.getString(resId) }.getOrNull()?.trim().orEmpty() else ""
+            return if (dbId.isNotEmpty()) dbId else "ai-studio-android-jeestudy-3a3e6b5c-3cf7-434b-8b3e-c727bb1c9b5a"
+        }
+
+        fun resolveFirestoreDatabase(context: Context): FirebaseFirestore {
+            return FirebaseFirestore.getInstance(resolveFirestoreDatabaseId(context))
         }
     }
 }

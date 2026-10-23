@@ -32,6 +32,12 @@ abstract class FirestoreEmulatorTestBase {
 
     @Before
     open fun setUpFirebase() {
+        val emulatorsAvailable = isPortOpen(EMULATOR_HOST, FIRESTORE_PORT) && isPortOpen(EMULATOR_HOST, AUTH_PORT)
+        org.junit.Assume.assumeTrue(
+            "Firestore/Auth emulators not reachable on $EMULATOR_HOST. Skipping rule test in non-emulator environment.",
+            emulatorsAvailable
+        )
+
         val context = ApplicationProvider.getApplicationContext<Context>()
         val resId = context.resources.getIdentifier("firestore_database_id", "string", context.packageName)
         databaseId = if (resId != 0) context.getString(resId) else "ai-studio-android-jeestudy-3a3e6b5c-3cf7-434b-8b3e-c727bb1c9b5a"
@@ -94,5 +100,16 @@ abstract class FirestoreEmulatorTestBase {
         const val PROJECT_ID = "demo-no-project"
         const val DEFAULT_PASSWORD = "password123"
         const val AUTH_TIMEOUT_MS = 5000L
+
+        private fun isPortOpen(host: String, port: Int): Boolean {
+            return try {
+                java.net.Socket().use { socket ->
+                    socket.connect(java.net.InetSocketAddress(host, port), 250)
+                    true
+                }
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
 }
